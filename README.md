@@ -35,4 +35,8 @@ All models are downloaded automatically on first run.
 
 <img width="1459" height="867" alt="Screenshot 2026-08-11 144051" src="https://github.com/user-attachments/assets/0179f613-ea30-4949-8fb0-8ce5639c572e" />
 
+Future ideas:
+- optimize system further to search faster and do AI classification faster
+- Add database of known persons linked to image so images can be linked to certain person names. That way I can search images based on names. 
+
 MIT License
