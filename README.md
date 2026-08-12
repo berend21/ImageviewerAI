@@ -1,5 +1,5 @@
 # ImageviewerAI
-A self-hosted, offline-first photo gallery that runs in your browser — like Google Photos, but fully local. Point it at a folder, and it automatically indexes your images, generates thumbnails, and lets you search them using AI-powered tags, captions, and semantic understanding.
+An engineering-grade, self-hosted photo gallery that brings the power of Google Photos to your local machine. This project focuses on Privacy-by-Design, high-performance data handling, and local Edge-AI orchestration.
 
 Start page
 <img width="1918" height="921" alt="Screenshot 2026-08-11 143344" src="https://github.com/user-attachments/assets/576ada08-2c96-4710-ad7b-6200302da700" />
@@ -9,6 +9,12 @@ Searching 'bicycle'
 <img width="1915" height="776" alt="Screenshot 2026-08-11 143602" src="https://github.com/user-attachments/assets/aa727074-43c3-4a72-a9da-210258202f9a" />
 Searching 'tree'
 <img width="1914" height="545" alt="Screenshot 2026-08-11 143817" src="https://github.com/user-attachments/assets/c88639f0-3955-4377-b54a-8ed38ea4e6b3" />
+
+## 🏗 System Architecture & AI Pipeline
+The system is built as a multi-stage pipeline, orchestrating state-of-the-art models locally to extract deep metadata without cloud reliance.
+|q|w|e|r|
+|-|-|-|-|
+|asdf|asdf|asdf|asdf|
 
 ## ✨ Features
 
