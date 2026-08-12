@@ -23,13 +23,15 @@ Searching 'tree'
 - **Windows path support** — handles long paths, Unicode filenames, and UNC paths
 
 
-
+This runs locally on your machine (GPU recommended). Once complete, photos get an AI badge and become searchable by content. 
 
 Phase	Model	What it does
 - 1	RAM++	Generates keyword tags (e.g. electrical wiring, engine, outdoor)
 - 2	SigLIP	Creates image embeddings for semantic search + zero-shot category scores
 - 3	BLIP	Generates short and detailed natural language captions
 - 4	EasyOCR	Extracts any text visible in the image
+All models are downloaded automatically on first run.
+  
 
 <img width="1459" height="867" alt="Screenshot 2026-08-11 144051" src="https://github.com/user-attachments/assets/0179f613-ea30-4949-8fb0-8ce5639c572e" />
 
