@@ -35,3 +35,4 @@ All models are downloaded automatically on first run.
 
 <img width="1459" height="867" alt="Screenshot 2026-08-11 144051" src="https://github.com/user-attachments/assets/0179f613-ea30-4949-8fb0-8ce5639c572e" />
 
+MIT License
