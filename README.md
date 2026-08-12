@@ -1,6 +1,5 @@
 # ImageviewerAI
-Image viewer inside browser like google photos but offline. Images will be indexed on background. Local ai run over it manually. 
-When photos are indexed with ai it puts 'ai' at right bottom of image and images can be searched based on ai tag that is given. 
+A self-hosted, offline-first photo gallery that runs in your browser — like Google Photos, but fully local. Point it at a folder, and it automatically indexes your images, generates thumbnails, and lets you search them using AI-powered tags, captions, and semantic understanding.
 
 Start page
 <img width="1918" height="921" alt="Screenshot 2026-08-11 143344" src="https://github.com/user-attachments/assets/576ada08-2c96-4710-ad7b-6200302da700" />
