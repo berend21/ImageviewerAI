@@ -31,6 +31,10 @@ Phase	Model	What it does
 - 3	BLIP	Generates short and detailed natural language captions
 - 4	EasyOCR	Extracts any text visible in the image
 All models are downloaded automatically on first run.
+
+Clicking on imges opens modal with all information and coordinates are clickable to google maps location.
+<img width="1919" height="915" alt="Screenshot 2026-08-12 141808" src="https://github.com/user-attachments/assets/32ac1301-3f51-4456-abde-3fda20e0ccfa" />
+
   
 
 <img width="1459" height="867" alt="Screenshot 2026-08-11 144051" src="https://github.com/user-attachments/assets/0179f613-ea30-4949-8fb0-8ce5639c572e" />
