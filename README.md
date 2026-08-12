@@ -16,7 +16,7 @@ Searching 'tree'
 - **Auto-indexing** — scans your image folder on startup and re-scans in the background every 2 minutes
 - **AI tagging** — run the categorizer manually to tag images with RAM++; tagged photos show an `AI` badge
 - **Semantic search** — search by concept (e.g. `electrical`, `sunset`, `engine`) using SigLIP embeddings
-- **Full-text search** — FTS5-powered search over filenames, captions, tags, OCR text
+- **Full-text search** — FTS5-powered search over filenames, captions, tags, OCR text (not yet working perfect)
 - **EXIF extraction** — date, camera model, GPS coordinates
 - **WebP thumbnails** — fast-loading, cached in-memory LRU cache
 - **Offline** — no cloud, no telemetry, everything stays on your machine
@@ -37,6 +37,7 @@ All models are downloaded automatically on first run.
 
 Future ideas:
 - optimize system further to search faster and do AI classification faster
-- Add database of known persons linked to image so images can be linked to certain person names. That way I can search images based on names. 
+- Add database of known persons linked to image so images can be linked to certain person names. That way I can search images based on names.
+- Fix full-text search so document text become searchable. 
 
 MIT License
