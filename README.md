@@ -22,7 +22,7 @@ Searching 'tree'
 - **Offline** — no cloud, no telemetry, everything stays on your machine
 - **Windows path support** — handles long paths, Unicode filenames, and UNC paths
 
----
+
 
 
 Tags are stated from several models and categorized in database
