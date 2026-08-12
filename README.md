@@ -12,9 +12,24 @@ Searching 'tree'
 
 ## 🏗 System Architecture & AI Pipeline
 The system is built as a multi-stage pipeline, orchestrating state-of-the-art models locally to extract deep metadata without cloud reliance.
-|q|w|e|r|
+|Phase|Model|Domain|Impact|
 |-|-|-|-|
-|asdf|asdf|asdf|asdf|
+|1|RAM++|Multi-label Tagging|Generates high-confidence keyword tags (e.g., Industrial, circuitry, outdoor).|
+|2|SigLIP|Semantic Embedding|Powers vector-based search and zero-shot classification for conceptual queries.|
+|3|BLIP|Visual Prompting|Generates descriptive natural language captions for enhanced context.|
+|4|EasyOCR|Text Extraction|Digitizes text within images (OCR), enabling searchability for technical documents.|
+
+All models are downloaded automatically on first run.
+
+## 🛠 Engineering Highlights
+
+*   **Asynchronous Model Orchestration:** Developed a multi-stage AI pipeline that sequentially triggers **RAM++**, **SigLIP**, and **BLIP** models to extract structured metadata without blocking the main UI thread.
+*   **High-Concurrency Database Architecture:** Optimized **SQLite (WAL mode)** with a custom **Connection Pool** and **FTS5 (Full-Text Search)** indexing to provide sub-second search results across thousands of documents and images.
+*   **Custom LRU Caching Layer:** Engineered an in-memory **Least Recently Used (LRU) cache** for JIT (Just-In-Time) WebP thumbnail transcoding, significantly reducing disk I/O and front-end latency.
+*   **Robust File System Integration:** Implemented "Safe Read" logic to handle complex Windows environments, including UNC paths, Unicode character sets, and Long Path (260+ char) edge cases.
+*   **Semantic Vector Embedding:** Leveraged **SigLIP embeddings** to enable natural language "concept search," allowing users to query images by abstract descriptions rather than just filenames.
+
+---
 
 ## ✨ Features
 
@@ -31,12 +46,6 @@ The system is built as a multi-stage pipeline, orchestrating state-of-the-art mo
 
 This runs locally on your machine (GPU recommended). Once complete, photos get an AI badge and become searchable by content. 
 
-Phase	Model	What it does
-- 1	RAM++	Generates keyword tags (e.g. electrical wiring, engine, outdoor)
-- 2	SigLIP	Creates image embeddings for semantic search + zero-shot category scores
-- 3	BLIP	Generates short and detailed natural language captions
-- 4	EasyOCR	Extracts any text visible in the image
-All models are downloaded automatically on first run.
 
 Clicking on imges opens modal with all information and coordinates are clickable to google maps location.
 <img width="1919" height="915" alt="Screenshot 2026-08-12 141808" src="https://github.com/user-attachments/assets/32ac1301-3f51-4456-abde-3fda20e0ccfa" />
@@ -50,4 +59,3 @@ Future ideas:
 - Add database of known persons linked to image so images can be linked to certain person names. That way I can search images based on names.
 - Fix full-text search so document text become searchable. 
 
-MIT License
