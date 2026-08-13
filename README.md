@@ -2,7 +2,7 @@
 An engineering-grade, self-hosted photo gallery that brings the power of Google Photos to your local machine. This project focuses on Privacy-by-Design, high-performance data handling, and local Edge-AI orchestration.
 
 ## 🏗 System Architecture & AI Pipeline
-The system is built as a multi-stage pipeline, orchestrating state-of-the-art models locally to extract deep metadata without cloud reliance.
+The system is built as a multi-stage pipeline, orchestrating models locally to extract deep metadata without cloud reliance.
 |Phase|Model|Domain|Impact|
 |-|-|-|-|
 |1|RAM++|Multi-label Tagging|Generates high-confidence keyword tags (e.g., Industrial, circuitry, outdoor).|
