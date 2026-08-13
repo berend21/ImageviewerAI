@@ -117,9 +117,10 @@ Your existing photo library
 GPU acceleration is recommended for large libraries, although the exact requirements depend on which models you enable.
 
 # Clone the repository
+```
 git clone https://github.com/berend21/ImageviewerAI.git
 cd ImageviewerAI
-
+```
 # Install dependencies
 pip install -r requirements.txt
 
