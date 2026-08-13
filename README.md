@@ -122,11 +122,13 @@ git clone https://github.com/berend21/ImageviewerAI.git
 cd ImageviewerAI
 ```
 # Install dependencies
+```
 pip install -r requirements.txt
-
+```
 # Start ImageviewerAI
+```
 python appim.py
-
+```
 Then open the local web interface in your browser.
 
 The exact startup command and configuration may change as the project evolves. Check the repository configuration for the current recommended setup.
