@@ -1,5 +1,9 @@
 # ImageviewerAI
-An engineering-grade, self-hosted photo gallery that brings the power of Google Photos to your local machine. This project focuses on Privacy-by-Design, high-performance data handling, and local Edge-AI orchestration.
+A local-first, AI-powered photo manager for large personal image libraries.
+
+ImageviewerAI is a self-hosted photo browser and search engine designed for people who want the convenience of AI-powered photo organization without uploading their library to a cloud service.
+It indexes your existing folders, extracts metadata, generates thumbnails, analyzes images with local AI models, and makes the resulting library searchable through a web interface.
+Local-first: your photos and AI processing stay on your machine. No cloud account or external AI API is required.
 
 ## 🏗 System Architecture & AI Pipeline
 The system is built as a multi-stage pipeline, orchestrating models locally to extract deep metadata without cloud reliance.
