@@ -20,7 +20,7 @@ Traditional file browsers are good at navigating folders, but poor at answering 
 - "Show me everything taken in a particular location."
 - ImageviewerAI combines traditional photo-library indexing with local computer vision and semantic search to make those queries possible.
 
-## 🏗 System Architecture & AI Pipeline
+## System Architecture & AI Pipeline
 The system is built as a multi-stage pipeline, orchestrating models locally to extract deep metadata without cloud reliance.
 |Phase|Model|Domain|Impact|
 |-|-|-|-|
