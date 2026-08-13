@@ -225,5 +225,6 @@ Clicking on imges opens modal with all information and coordinates are clickable
 Future ideas:
 - optimize system further to search faster and do AI classification faster. Also webpage sometimes hangs when viewing many images after each other. 
 - Add database of known persons linked to image so images can be linked to certain person names. That way I can search images based on names.
+- Make locations searchable on a map and visible on the map. 
 - Fix full-text search so document text become searchable. 
 
