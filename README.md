@@ -92,7 +92,7 @@ photo library with searchable information.
 The resulting metadata is stored locally and can be searched without
 sending your images to an external service.
 
-
+```
 Image
  │
  ├── EXIF ──────────────┐
@@ -111,7 +111,7 @@ Image
                         │
                         ▼
                   Web interface
-
+```
 
 ## Important note about metadata
 ImageviewerAI can read metadata such as GPS coordinates from image EXIF data. If the application is made accessible to other devices or networks, treat the generated metadata and API endpoints as potentially sensitive.
