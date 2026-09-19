@@ -17,7 +17,7 @@ WEBP_QUALITY = 75
 PER_PAGE = 100
 
 db_lock = Lock()
-
+ 
 
 def get_db(db_path: Path):
     conn = sqlite3.connect(
