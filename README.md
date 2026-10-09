@@ -7,6 +7,8 @@ your photos to the cloud.
 
 Start page
 <img width="1918" height="921" alt="Screenshot 2026-08-11 143344" src="https://github.com/user-attachments/assets/576ada08-2c96-4710-ad7b-6200302da700" />
+Date sorted
+<img width="1898" height="914" alt="Screenshot 2026-10-09 211003" src="https://github.com/user-attachments/assets/b3e9a54f-aa5f-4665-af30-7724281b3aa8" />
 Searching 'electrical'
 <img width="1916" height="775" alt="Screenshot 2026-08-11 143527" src="https://github.com/user-attachments/assets/5b92c4a0-7b69-42c4-8540-bef38b5fb8a8" />
 Searching 'bicycle'
