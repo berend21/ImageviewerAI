@@ -1,634 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
-<head> 
+<head>
     <meta charset="UTF-8">
+    
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0a0a0a">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Photos</title>
-    <style>
-        :root {
-            --bg: #0a0a0a;
-            --bg-secondary: #141414;
-            --bg-tertiary: #1a1a1a;
-            --text: #ffffff;
-            --text-muted: #888888;
-            --accent: #4a9eff;
-            --danger: #ef4444;
-            --danger-dim: #dc2626;
-            --success: #4ade80;
-            --border: #2a2a2a;
-            --thumb-size: 180px;
-            --safe-top: env(safe-area-inset-top, 0px);
-            --safe-bottom: env(safe-area-inset-bottom, 0px);
-        }
-        
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.5;
-            overflow-x: hidden;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        header {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            background: rgba(10, 10, 10, 0.95);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            padding: 12px 16px;
-            padding-top: calc(12px + var(--safe-top));
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        
-        .logo {
-            font-size: 20px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-shrink: 0;
-        }
-        
-        .search-container {
-            flex: 1;
-            min-width: 0;
-            position: relative;
-        }
-        
-        .search {
-            width: 100%;
-            height: 40px;
-            padding: 0 36px 0 14px;
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            background: var(--bg-secondary);
-            color: var(--text);
-            font-size: 16px;
-            transition: all 0.2s;
-        }
-        
-        .search:focus {
-            outline: none;
-            border-color: var(--accent);
-            background: var(--bg-tertiary);
-        }
-        
-        .search-clear {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 22px;
-            height: 22px;
-            border: none;
-            background: var(--text-muted);
-            color: var(--bg);
-            border-radius: 50%;
-            font-size: 12px;
-            cursor: pointer;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s;
-        }
-        
-        .search:not(:placeholder-shown) + .search-clear { 
-            opacity: 1; 
-            pointer-events: auto;
-        }
-        
-        .toolbar {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-shrink: 0;
-        }
-        
-        .btn {
-            padding: 8px 14px;
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            background: transparent;
-            color: var(--text);
-            font-size: 13px;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            white-space: nowrap;
-        }
-        
-        .btn:hover { background: var(--bg-tertiary); border-color: var(--text-muted); }
-        .btn:active { transform: scale(0.96); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        
-        .stats {
-            font-size: 13px;
-            color: var(--text-muted);
-            white-space: nowrap;
-        }
-        
-        .stats .highlight { color: var(--success); }
-        
-        /* Main */
-        main {
-            min-height: calc(100vh - 70px);
-            min-height: calc(100dvh - 70px);
-        }
-        
-        .gallery {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(var(--thumb-size), 1fr));
-            gap: 3px;
-            padding: 3px;
-        }
-        
-        .photo {
-            aspect-ratio: 1;
-            position: relative;
-            border-radius: 2px;
-            overflow: hidden;
-            cursor: pointer;
-            background: var(--bg-tertiary);
-        }
-        
-        .photo img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        
-        .photo img.loaded { opacity: 1; }
-        
-        .photo:active { 
-            transform: scale(0.98); 
-        }
-        
-        .photo .badge {
-            position: absolute;
-            bottom: 4px;
-            right: 4px;
-            padding: 2px 6px;
-            border-radius: 8px;
-            font-size: 9px;
-            font-weight: 600;
-            background: rgba(0, 0, 0, 0.75);
-            color: var(--success);
-        }
-
-        .loading {
-            display: none;
-            justify-content: center;
-            padding: 40px;
-        }
-        
-        .loading.active { display: flex; }
-        
-        .spinner {
-            width: 36px;
-            height: 36px;
-            border: 3px solid var(--border);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        
-        @keyframes spin { to { transform: rotate(360deg); } }
-        
-        .empty {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 60px 20px;
-            color: var(--text-muted);
-        }
-        
-        .empty.active { display: flex; }
-        .empty-icon { font-size: 56px; margin-bottom: 12px; opacity: 0.5; }
-        .empty-text { font-size: 16px; }
-
-        .lightbox {
-            position: fixed;
-            inset: 0;
-            background: #000;
-            display: none;
-            flex-direction: column;
-            z-index: 1000;
-        }
-        
-        .lightbox.active { display: flex; }
-        
-        .lb-header {
-            display: flex;
-            align-items: center;
-            padding: 8px 12px;
-            padding-top: calc(8px + var(--safe-top));
-            background: linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 70%, transparent 100%);
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 10;
-            min-height: 56px;
-        }
-        
-        .lb-btn {
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            border: none;
-            background: transparent;
-            color: var(--text);
-            font-size: 20px;
-            cursor: pointer;
-            transition: background 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-        }
-        
-        .lb-btn:active { background: rgba(255, 255, 255, 0.15); }
-        .lb-btn.danger:active { background: var(--danger); }
-        
-        .lb-title {
-            flex: 1;
-            text-align: center;
-            font-size: 14px;
-            color: rgba(255,255,255,0.8);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            padding: 0 8px;
-            min-width: 0;
-        }
-        
-        .lb-content {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            overflow: hidden;
-            touch-action: pan-x pinch-zoom;
-        }
-        
-        .lb-content img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-            user-select: none;
-            -webkit-user-drag: none;
-        }
-        
-        .lb-spinner {
-            position: absolute;
-            width: 40px;
-            height: 40px;
-            border: 3px solid rgba(255,255,255,0.2);
-            border-top-color: var(--text);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        
-        .lb-nav {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            background: rgba(0, 0, 0, 0.4);
-            border: none;
-            color: var(--text);
-            font-size: 22px;
-            cursor: pointer;
-            z-index: 10;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .lb-nav:active { background: rgba(0, 0, 0, 0.6); }
-        .lb-nav:disabled { opacity: 0.3; }
-        .lb-nav.prev { left: 8px; }
-        .lb-nav.next { right: 8px; }
-        
-        .lb-footer {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 16px;
-            padding: 12px;
-            padding-bottom: calc(12px + var(--safe-bottom));
-            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 70%, transparent 100%);
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            font-size: 12px;
-            color: rgba(255,255,255,0.7);
-        }
-        
-        .info-panel {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 340px;
-            max-width: 100%;
-            height: 100%;
-            background: var(--bg-secondary);
-            transform: translateX(100%);
-            transition: transform 0.3s ease;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-            z-index: 20;
-            border-left: 1px solid var(--border);
-        }
-        
-        .info-panel.active { transform: translateX(0); }
-        
-        .info-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 16px;
-            padding-top: calc(12px + var(--safe-top));
-            border-bottom: 1px solid var(--border);
-            position: sticky;
-            top: 0;
-            background: var(--bg-secondary);
-            z-index: 1;
-        }
-        
-        .info-header h3 { font-size: 16px; font-weight: 500; }
-        
-        .info-content { 
-            padding: 16px; 
-            padding-bottom: calc(16px + var(--safe-bottom));
-        }
-        
-        .info-row {
-            margin-bottom: 14px;
-        }
-        
-        .info-label {
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-bottom: 3px;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-        
-        .info-value {
-            font-size: 14px;
-            word-break: break-word;
-        }
-        
-        .info-value.muted { color: var(--text-muted); }
-        
-        .info-value a {
-            color: var(--accent);
-            text-decoration: none;
-        }
-        
-        .tag {
-            display: inline-block;
-            padding: 4px 10px;
-            background: var(--bg-tertiary);
-            border-radius: 14px;
-            font-size: 12px;
-            margin: 2px;
-        }
-        
-        .info-path {
-            font-size: 11px;
-            color: var(--text-muted);
-            word-break: break-all;
-            padding: 10px;
-            background: var(--bg);
-            border-radius: 8px;
-            margin-top: 16px;
-            line-height: 1.4;
-        }
-     
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.85);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 2000;
-            padding: 20px;
-        }
-        
-        .modal-overlay.active { display: flex; }
-        
-        .modal {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 24px;
-            max-width: 360px;
-            width: 100%;
-            text-align: center;
-        }
-        
-        .modal-icon {
-            font-size: 44px;
-            margin-bottom: 12px;
-        }
-        
-        .modal h3 {
-            margin-bottom: 8px;
-            font-size: 18px;
-        }
-        
-        .modal p {
-            color: var(--text-muted);
-            margin-bottom: 20px;
-            font-size: 13px;
-            line-height: 1.5;
-        }
-        
-        .modal-filename {
-            background: var(--bg);
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 13px;
-            margin-bottom: 16px;
-            word-break: break-all;
-        }
-        
-        .modal-actions {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .modal-actions .btn {
-            flex: 1;
-            justify-content: center;
-            padding: 14px 20px;
-            font-size: 14px;
-            border-radius: 12px;
-        }
-        
-        .btn.danger-solid {
-            background: var(--danger);
-            border-color: var(--danger);
-            color: white;
-        }
-        
-        .btn.danger-solid:active {
-            background: var(--danger-dim);
-        }
-       
-        .toast-container {
-            position: fixed;
-            bottom: 24px;
-            bottom: calc(24px + var(--safe-bottom));
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 3000;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            align-items: center;
-            pointer-events: none;
-        }
-        
-        .toast {
-            padding: 12px 20px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            font-size: 14px;
-            animation: toastIn 0.3s ease;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-        }
-        
-        .toast.success { border-color: var(--success); }
-        .toast.error { border-color: var(--danger); }
-        
-        @keyframes toastIn {
-            from { transform: translateY(20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        
-        .scroll-top {
-            position: fixed;
-            bottom: 20px;
-            bottom: calc(20px + var(--safe-bottom));
-            right: 16px;
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background: var(--accent);
-            border: none;
-            color: var(--text);
-            font-size: 20px;
-            cursor: pointer;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s;
-            box-shadow: 0 4px 12px rgba(74, 158, 255, 0.3);
-            z-index: 80;
-        }
-        
-        .scroll-top.visible { opacity: 1; visibility: visible; }
-        .scroll-top:active { transform: scale(0.95); }
-        
-        @media (hover: hover) {
-            .photo:hover { 
-                transform: scale(1.02); 
-                z-index: 1; 
-            }
-            .lb-btn:hover { background: rgba(255, 255, 255, 0.1); }
-            .lb-btn.danger:hover { background: rgba(239, 68, 68, 0.3); }
-            .lb-nav:hover { background: rgba(0, 0, 0, 0.6); }
-            .btn.danger-solid:hover { background: var(--danger-dim); }
-        }
-        
-        @media (max-width: 600px) {
-            :root {
-                --thumb-size: 115px;
-            }
-            
-            header {
-                padding: 10px 12px;
-                padding-top: calc(10px + var(--safe-top));
-                gap: 10px;
-            }
-            
-            .logo span { display: none; }
-            
-            .btn span:last-child { display: none; }
-            .btn { padding: 10px 12px; }
-            
-            .stats { display: none; }
-            
-            .gallery {
-                gap: 2px;
-                padding: 2px;
-            }
-            
-            .lb-nav {
-                width: 36px;
-                height: 36px;
-                font-size: 18px;
-                opacity: 0.7;
-            }
-            
-            .lb-nav.prev { left: 4px; }
-            .lb-nav.next { right: 4px; }
-            
-            .info-panel {
-                width: 100%;
-            }
-            
-            .lb-footer {
-                gap: 12px;
-                font-size: 11px;
-            }
-        }
-        
-        @media (max-width: 380px) {
-            :root {
-                --thumb-size: 100px;
-            }
-        }
-        
-        @media (min-width: 601px) and (max-width: 1024px) {
-            :root {
-                --thumb-size: 160px;
-            }
-        }
-        
-        @media (min-width: 1400px) {
-            :root {
-                --thumb-size: 220px;
-            }
-            
-            .gallery {
-                gap: 4px;
-                padding: 8px;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <header>
@@ -719,6 +100,7 @@ const state = {
     infoPanelOpen: false,
     deleteTarget: null
 };
+let searchRequestId = 0;
 
 const $ = id => document.getElementById(id);
 
@@ -758,25 +140,70 @@ function showToast(message, type = 'info') {
     }, 2500);
 }
 
+async function fetchJson(url, options = {}) {
+    const method = (options.method || 'GET').toUpperCase();
+    const headers = new Headers(options.headers || {});
+
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+        const token = document.querySelector(
+            'meta[name="csrf-token"]'
+        )?.content;
+
+        if (!token) {
+            throw new Error('CSRF token is missing. Reload the page.');
+        }
+
+        headers.set('X-CSRFToken', token);
+    }
+
+    const response = await fetch(url, {
+        ...options,
+        method,
+        headers,
+        credentials: 'same-origin'
+    });
+
+    // fetch() resolves normally for HTTP errors, so check explicitly.
+    if (!response.ok) {
+        let message = `Request failed (${response.status})`;
+
+        try {
+            const body = await response.json();
+            if (typeof body.error === 'string' && body.error) {
+                message = body.error;
+            }
+        } catch {
+            // Keep the HTTP status message if the body isn't JSON.
+        }
+
+        throw new Error(message);
+    }
+
+    return response.json();
+}
+
 async function fetchPhotos(page, search = '') {
-    const params = new URLSearchParams({ page, per_page: PER_PAGE, search });
-    const res = await fetch('/api/photos?' + params);
-    return res.json();
+    const params = new URLSearchParams({
+        page: String(page),
+        per_page: String(PER_PAGE),
+        search
+    });
+
+    return fetchJson('/api/photos?' + params);
 }
 
 async function fetchDetail(id) {
-    const res = await fetch('/api/photo/' + id);
-    return res.json();
+    return fetchJson('/api/photo/' + encodeURIComponent(id));
 }
 
 async function fetchStats() {
-    const res = await fetch('/api/stats');
-    return res.json();
+    return fetchJson('/api/stats');
 }
 
 async function deletePhoto(id) {
-    const res = await fetch('/api/photo/' + id, { method: 'DELETE' });
-    return res.json();
+    return fetchJson('/api/photo/' + encodeURIComponent(id), {
+        method: 'DELETE'
+    });
 }
 
 function createPhotoEl(p) {
@@ -790,6 +217,7 @@ function createPhotoEl(p) {
     
     const img = document.createElement('img');
     img.loading = 'lazy';
+    img.decoding = 'async';
     img.src = '/thumbnail/' + p.id;
     img.alt = p.filename || '';
     
@@ -812,7 +240,7 @@ function render(photos, append = false) {
     const gallery = $('gallery');
     
     if (!append) {
-        gallery.innerHTML = '';
+        gallery.replaceChildren();
         state.photos = [];
     }
     
@@ -839,58 +267,97 @@ function removePhotoFromGallery(id) {
 
 async function loadMore() {
     if (state.loading || !state.hasMore) return;
-    
+
+    const requestId = searchRequestId;
+
     state.loading = true;
     $('loading').classList.add('active');
-    
-    state.page++;
-    
+
+    const nextPage = state.page + 1;
+
     try {
-        const data = await fetchPhotos(state.page, state.search);
-        
-        if (!data.photos || !data.photos.length) {
+        const data = await fetchPhotos(nextPage, state.search);
+        if (requestId !== searchRequestId) return;
+        const photos = data.photos || [];
+        const existingIds = new Set(state.photos.map(p => p.id));
+        const newPhotos = photos.filter(p => !existingIds.has(p.id));
+
+        if (photos.length === 0) {
             state.hasMore = false;
         } else {
-            render(data.photos, true);
+            state.page = nextPage;
+
+            if (newPhotos.length > 0) {
+                render(newPhotos, true);
+            }
+
             state.hasMore = state.photos.length < data.total;
         }
     } catch (e) {
         console.error('Load error:', e);
+        showToast('Failed to load more photos', 'error');
+    } finally {
+        if (requestId === searchRequestId) {
+            state.loading = false;
+            $('loading').classList.remove('active');
+        }
     }
-    
-    state.loading = false;
-    $('loading').classList.remove('active');
 }
 
 const doSearch = debounce(async (q) => {
+    const requestId = ++searchRequestId;
+
     state.search = q.trim();
     state.page = 1;
     state.hasMore = true;
-    
+    state.loading = true;
+
     $('loading').classList.add('active');
-    
+
     try {
         const data = await fetchPhotos(1, state.search);
+
+        if (requestId !== searchRequestId) return;
+
         state.total = data.total || 0;
-        state.hasMore = (data.photos?.length || 0) < data.total;
+        state.hasMore =
+            (data.photos?.length || 0) < state.total;
+
         render(data.photos || []);
     } catch (e) {
+        if (requestId !== searchRequestId) return;
+
         console.error('Search error:', e);
+        showToast('Search failed', 'error');
         render([]);
+    } finally {
+        if (requestId === searchRequestId) {
+            state.loading = false;
+            $('loading').classList.remove('active');
+        }
     }
-    
-    $('loading').classList.remove('active');
+
     updateStats();
 }, 300);
 
 async function updateStats() {
     try {
         const s = await fetchStats();
-        const parts = [(s.total || 0).toLocaleString() + ' photos'];
-        if (s.with_tags > 0) {
-            parts.push(`<span class="highlight">${s.with_tags} AI</span>`);
+        const stats = $('stats');
+        stats.replaceChildren();
+
+        const total = document.createElement('span');
+        total.textContent =
+            `${Number(s.total) || 0} photos`;
+        stats.appendChild(total);
+
+        if (Number(s.with_tags) > 0) {
+            const highlight = document.createElement('span');
+            highlight.className = 'highlight';
+            highlight.textContent = `${Number(s.with_tags)} AI`;
+
+            stats.append(' · ', highlight);
         }
-        $('stats').innerHTML = parts.join(' · ');
     } catch (e) {
         console.error('Stats error:', e);
     }
@@ -962,78 +429,189 @@ function navLb(dir) {
     }
 }
 
+function addInfoRow(container, label, value, options = {}) {
+    const row = document.createElement('div');
+    row.className = 'info-row';
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'info-label';
+    labelEl.textContent = label;
+
+    const valueEl = document.createElement('div');
+    valueEl.className = 'info-value';
+
+    if (options.valueClass) {
+        valueEl.classList.add(options.valueClass);
+    }
+
+    if (options.preformatted) {
+        valueEl.style.maxHeight = '80px';
+        valueEl.style.overflow = 'auto';
+        valueEl.style.backgroundColor = 'var(--bg)';
+        valueEl.style.padding = '8px';
+        valueEl.style.borderRadius = '6px';
+        valueEl.style.fontSize = '12px';
+    }
+
+    valueEl.textContent = value == null ? '' : String(value);
+
+    row.append(labelEl, valueEl);
+    container.appendChild(row);
+}
+
+function addTagRow(container, label, values) {
+    const tags = Object.keys(values || {});
+    if (!tags.length) return;
+
+    const row = document.createElement('div');
+    row.className = 'info-row';
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'info-label';
+    labelEl.textContent = label;
+
+    const valueEl = document.createElement('div');
+    valueEl.className = 'info-value';
+
+    for (const tag of tags) {
+        const span = document.createElement('span');
+        span.className = 'tag';
+        span.textContent = tag;
+        valueEl.appendChild(span);
+    }
+
+    row.append(labelEl, valueEl);
+    container.appendChild(row);
+}
+
 async function loadInfoPanel() {
     const p = state.photos[state.idx];
     if (!p) return;
-    
-    $('infoContent').innerHTML = '<div class="spinner" style="margin: 40px auto;"></div>';
-    
+
+    const content = $('infoContent');
+    content.replaceChildren();
+
+    const spinner = document.createElement('div');
+    spinner.className = 'spinner';
+    spinner.style.margin = '40px auto';
+    content.appendChild(spinner);
+
     try {
         const d = await fetchDetail(p.id);
-        
-        let html = '';
-        
-        html += `<div class="info-row"><div class="info-label">Filename</div><div class="info-value">${d.filename || ''}</div></div>`;
-        
+
+        // The user may have navigated to another photo while loading.
+        if (
+            !state.infoPanelOpen ||
+            state.photos[state.idx]?.id !== p.id
+        ) {
+            return;
+        }
+
+        content.replaceChildren();
+
+        addInfoRow(content, 'Filename', d.filename);
+
         const dateTaken = formatDate(d.exif_date);
         const fileModified = formatDate(d.file_modified);
-        
+
         if (dateTaken) {
-            html += `<div class="info-row"><div class="info-label">Date Taken</div><div class="info-value">${dateTaken}</div></div>`;
+            addInfoRow(content, 'Date Taken', dateTaken);
         }
-        
-        if (fileModified && (!dateTaken || fileModified !== dateTaken)) {
-            html += `<div class="info-row"><div class="info-label">File Modified</div><div class="info-value muted">${fileModified}</div></div>`;
+
+        if (fileModified && fileModified !== dateTaken) {
+            addInfoRow(content, 'File Modified', fileModified, {
+                valueClass: 'muted'
+            });
         }
-        
+
         if (d.exif_camera) {
-            html += `<div class="info-row"><div class="info-label">Camera</div><div class="info-value">${d.exif_camera}</div></div>`;
+            addInfoRow(content, 'Camera', d.exif_camera);
         }
-        
-        html += `<div class="info-row"><div class="info-label">Dimensions</div><div class="info-value">${d.width} × ${d.height}</div></div>`;
-        html += `<div class="info-row"><div class="info-label">Size</div><div class="info-value">${formatSize(d.file_size)}</div></div>`;
-        
-        if (d.gps) {
-            html += `<div class="info-row"><div class="info-label">Location</div><div class="info-value">
-                <a href="https://maps.google.com/?q=${d.gps.lat},${d.gps.lon}" target="_blank" rel="noopener">
-                    ${d.gps.lat.toFixed(5)}, ${d.gps.lon.toFixed(5)} ↗
-                </a>
-            </div></div>`;
+
+        addInfoRow(
+            content,
+            'Dimensions',
+            `${d.width ?? '?'} × ${d.height ?? '?'}`
+        );
+
+        addInfoRow(content, 'Size', formatSize(d.file_size));
+
+        if (
+            Number.isFinite(d.gps?.lat) &&
+            Number.isFinite(d.gps?.lon)
+        ) {
+            const row = document.createElement('div');
+            row.className = 'info-row';
+
+            const label = document.createElement('div');
+            label.className = 'info-label';
+            label.textContent = 'Location';
+
+            const value = document.createElement('div');
+            value.className = 'info-value';
+
+            const lat = d.gps.lat;
+            const lon = d.gps.lon;
+
+            const link = document.createElement('a');
+            const params = new URLSearchParams({
+                q: `${lat},${lon}`
+            });
+
+            link.href = `https://maps.google.com/?${params}`;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent =
+                `${lat.toFixed(5)}, ${lon.toFixed(5)} ↗`;
+
+            value.appendChild(link);
+            row.append(label, value);
+            content.appendChild(row);
         }
-        
-        if (d.caption || (d.tags && Object.keys(d.tags).length) || d.ocr_text) {
-            html += '<div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border);"></div>';
-            
+
+        if (d.caption || d.tags || d.categories || d.ocr_text) {
+            const separator = document.createElement('div');
+            separator.style.marginTop = '20px';
+            separator.style.paddingTop = '16px';
+            separator.style.borderTop = '1px solid var(--border)';
+            content.appendChild(separator);
+
             if (d.caption) {
-                html += `<div class="info-row"><div class="info-label">Caption</div><div class="info-value">${d.caption}</div></div>`;
+                addInfoRow(content, 'Caption', d.caption);
             }
-            
-            if (d.tags && Object.keys(d.tags).length) {
-                html += `<div class="info-row"><div class="info-label">Tags</div><div class="info-value">
-                    ${Object.keys(d.tags).map(t => `<span class="tag">${t}</span>`).join('')}
-                </div></div>`;
-            }
-            
-            if (d.categories && Object.keys(d.categories).length) {
-                html += `<div class="info-row"><div class="info-label">Categories</div><div class="info-value">
-                    ${Object.keys(d.categories).map(c => `<span class="tag">${c}</span>`).join('')}
-                </div></div>`;
-            }
-            
+
+            addTagRow(content, 'Tags', d.tags);
+            addTagRow(content, 'Categories', d.categories);
+
             if (d.ocr_text) {
-                html += `<div class="info-row"><div class="info-label">Text (OCR)</div>
-                    <div class="info-value" style="max-height: 80px; overflow: auto; background: var(--bg); padding: 8px; border-radius: 6px; font-size: 12px;">
-                        ${d.ocr_text}
-                    </div>
-                </div>`;
+                addInfoRow(content, 'Text (OCR)', d.ocr_text, {
+                    preformatted: true
+                });
             }
         }
-        
-        html += `<div class="info-path">${d.filepath || ''}</div>`;
-        
-        $('infoContent').innerHTML = html;
+
+        const path = document.createElement('div');
+        path.className = 'info-path';
+        path.textContent = d.filepath || '';
+        content.appendChild(path);
+
     } catch (e) {
-        $('infoContent').innerHTML = '<div style="color: var(--danger); padding: 20px;">Failed to load details</div>';
+        if (
+            !state.infoPanelOpen ||
+            state.photos[state.idx]?.id !== p.id
+        ) {
+            return;
+        }
+
+        content.replaceChildren();
+
+        const error = document.createElement('div');
+        error.style.color = 'var(--danger)';
+        error.style.padding = '20px';
+        error.textContent = 'Failed to load details';
+        content.appendChild(error);
+
+        console.error('Details error:', e);
     }
 }
 
@@ -1074,6 +652,7 @@ async function confirmDelete() {
         const result = await deletePhoto(p.id);
         
         if (result.success) {
+            state.total = Math.max(0, state.total - 1);
             showToast('Photo deleted', 'success');
             removePhotoFromGallery(p.id);
             
@@ -1093,25 +672,33 @@ async function confirmDelete() {
         }
     } catch (e) {
         console.error('Delete error:', e);
-        showToast('Failed to delete photo', 'error');
+        showToast(e.message || 'Failed to delete photo', 'error');
     }
 }
 
 async function rescan() {
     const btn = $('rescan');
     btn.disabled = true;
-    
+
     try {
-        await fetch('/api/rescan', { method: 'POST' });
+        const result = await fetchJson('/api/rescan', {
+            method: 'POST'
+        });
+
+        if (result.success !== true) {
+            throw new Error(result.error || 'Scan failed');
+        }
+
         showToast('Scan complete', 'success');
         await updateStats();
-        doSearch(state.search);
+        await doSearch(state.search);
+
     } catch (e) {
         console.error('Rescan error:', e);
-        showToast('Scan failed', 'error');
+        showToast(e.message || 'Scan failed', 'error');
+    } finally {
+        btn.disabled = false;
     }
-    
-    btn.disabled = false;
 }
 
 const observer = new IntersectionObserver(entries => {
@@ -1139,7 +726,7 @@ $('gallery').addEventListener('click', e => {
     if (idx >= 0) openLb(idx);
 });
 
-$('search').addEventListener('input', e => doSearch(e.target.value));
+$('search').addEventListener('input', e => {searchRequestId++; doSearch(e.target.value);});
 $('searchClear').addEventListener('click', () => {
     $('search').value = '';
     doSearch('');
@@ -1221,15 +808,28 @@ $('lbContent').addEventListener('touchend', e => {
 }, { passive: true });
 
 (async () => {
+    console.log('[Photos] Initializing gallery');
+
     try {
+        console.time('[Photos] Initial API request');
         const data = await fetchPhotos(1);
+        console.timeEnd('[Photos] Initial API request')
+
+        console.log('[Photos] API response:', data);
+
         state.total = data.total || 0;
-        state.hasMore = (data.photos?.length || 0) < data.total;
+        state.hasMore =
+            (data.photos?.length || 0) < state.total;
+
         render(data.photos || []);
+
+        console.log('[Photos] Rendered:', data.photos?.length || 0);
+
         await updateStats();
     } catch (e) {
-        console.error('Init error:', e);
+        console.error('[Photos] Initialization failed:', e);
         $('empty').classList.add('active');
+        showToast('Failed to load photos: ' + e.message, 'error');
     }
 })();
 </script>
