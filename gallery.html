@@ -29,15 +29,56 @@
     </header>
     
     <main>
-        <div class="empty" id="empty">
-            <div class="empty-icon">📷</div>
-            <div class="empty-text">No photos found</div>
+        <div class="gallery-toolbar">
+            <div class="view-controls">
+                <button class="view-btn active" id="gridSquare"
+                        type="button" aria-pressed="true">
+                    Square
+                </button>
+                <button class="view-btn" id="gridOriginal"
+                        type="button" aria-pressed="false">
+                    Original ratio
+                </button>
+                <button class="view-btn" id="gridCompact"
+                        type="button" aria-pressed="false">
+                    Compact
+                </button>
+            </div>
+
+            <button class="view-btn" id="selectMode"
+                    type="button" aria-pressed="false">
+                Select
+            </button>
         </div>
-        
-        <div class="gallery" id="gallery"></div>
-        
-        <div class="loading" id="loading"><div class="spinner"></div></div>
-        <div id="sentinel" style="height: 1px;"></div>
+
+        <div class="selection-toolbar" id="selectionToolbar"
+            hidden>
+            <span id="selectionCount">0 selected</span>
+            <div>
+                <button class="view-btn" id="openSelected" type="button">
+                    Open first
+                </button>
+                <button class="view-btn" id="clearSelection" type="button">
+                    Clear
+                </button>
+                <button class="view-btn" id="exitSelection" type="button">
+                    Done
+                </button>
+            </div>
+        </div>
+
+            <div class="empty" id="empty">
+        <div class="empty-icon">📷</div>
+        <div class="empty-text">No photos found</div>
+    </div>
+
+    <div class="gallery" id="gallery"></div>
+
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <div id="sentinel" aria-hidden="true"></div>
     </main>
     
     <div class="lightbox" id="lightbox">
@@ -98,7 +139,18 @@ const state = {
     search: '',
     idx: 0,
     infoPanelOpen: false,
-    deleteTarget: null
+    deleteTarget: null,
+    selectionMode: false,
+    selectedIds: new Set(),
+    layout: 'square',
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    dragging: false,
+    dragStartX: 0,
+    dragStartY: 0,
+    dragOriginX: 0,
+    dragOriginY: 0
 };
 let searchRequestId = 0;
 
@@ -210,49 +262,328 @@ function createPhotoEl(p) {
     const div = document.createElement('div');
     div.className = 'photo';
     div.dataset.id = p.id;
-    
+    div.setAttribute('aria-label', p.filename || 'Photo');
+
     if (p.dominant_color) {
         div.style.backgroundColor = p.dominant_color;
     }
-    
+
+    if (state.selectedIds.has(p.id)) {
+        div.classList.add('selected');
+    }
+
+    if (state.layout === 'original' && p.width > 0 && p.height > 0) {
+        div.style.aspectRatio = `${p.width} / ${p.height}`;
+    }
+
     const img = document.createElement('img');
     img.loading = 'lazy';
     img.decoding = 'async';
     img.src = '/thumbnail/' + p.id;
     img.alt = p.filename || '';
-    
+
     img.onload = () => img.classList.add('loaded');
-    img.onerror = () => div.style.backgroundColor = '#2a2a2a';
-    
+    img.onerror = () => {
+        div.style.backgroundColor = '#2a2a2a';
+    };
+
     div.appendChild(img);
-    
+
     if (p.has_tags) {
         const badge = document.createElement('span');
         badge.className = 'badge';
         badge.textContent = 'AI';
         div.appendChild(badge);
     }
-    
+
+    if (state.selectedIds.has(p.id)) {
+        const check = document.createElement('span');
+        check.className = 'selection-check';
+        check.textContent = '✓';
+        check.setAttribute('aria-hidden', 'true');
+        div.appendChild(check);
+    }
+
     return div;
 }
 
+function formatGroupDate(date) {
+    if (date === 'Unknown date') return date;
+
+    const parsed = new Date(date + 'T12:00:00');
+
+    return Number.isNaN(parsed.getTime())
+        ? date
+        : parsed.toLocaleDateString(undefined, {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+}
+
+function getRowCapacity() {
+    return window.innerWidth <= 600 ? 4 : 8;
+}
 function render(photos, append = false) {
     const gallery = $('gallery');
-    
-    if (!append) {
-        gallery.replaceChildren();
-        state.photos = [];
+
+    // Keep previously loaded photos when another page is appended.
+    const allPhotos = append
+        ? [...state.photos, ...photos]
+        : [...photos];
+
+    // Rebuild the layout so shared rows remain correct across pages.
+    state.photos = allPhotos;
+
+    const savedScrollY = window.scrollY;
+    gallery.replaceChildren();
+    gallery.dataset.layout = state.layout;
+    gallery.classList.toggle('selection-mode', state.selectionMode);
+
+    const capacity = getRowCapacity();
+    gallery.style.setProperty('--row-columns', capacity);
+
+    // Group consecutive photos by date.
+    const groups = [];
+
+    for (const p of allPhotos) {
+        const date = p.date_group || 'Unknown date';
+        let group = groups[groups.length - 1];
+
+        if (!group || group.date !== date) {
+            group = { date, photos: [] };
+            groups.push(group);
+        }
+
+        group.photos.push(p);
     }
-    
-    $('empty').classList.toggle('active', !photos.length && !state.photos.length);
-    
+
     const frag = document.createDocumentFragment();
-    photos.forEach(p => {
-        state.photos.push(p);
-        frag.appendChild(createPhotoEl(p));
-    });
+    let pending = [];
+    let pendingCount = 0;
+
+    function makeHeading(date) {
+        const heading = document.createElement('div');
+        heading.className = 'date-heading';
+        heading.textContent = formatGroupDate(date);
+        return heading;
+    }
+
+    function addPhotos(container, group) {
+        for (const p of group.photos) {
+            container.appendChild(createPhotoEl(p));
+        }
+    }
+
+    function flushPending() {
+        if (!pending.length) return;
+
+        const section = document.createElement('section');
+        section.className = 'day-section shared-days';
+
+        const row = document.createElement('div');
+        row.className = 'shared-photo-row';
+        row.style.setProperty('--row-columns', capacity);
+
+        for (const group of pending) {
+            const day = document.createElement('div');
+            day.className = 'shared-day';
+            day.style.gridColumn = `span ${group.photos.length}`;
+
+            day.appendChild(makeHeading(group.date));
+
+            const images = document.createElement('div');
+            images.className = 'shared-day-photos';
+            images.style.gridTemplateColumns =
+                `repeat(${group.photos.length}, minmax(0, 1fr))`;
+
+            addPhotos(images, group);
+            day.appendChild(images);
+            row.appendChild(day);
+        }
+
+        section.appendChild(row);
+        frag.appendChild(section);
+
+        pending = [];
+        pendingCount = 0;
+    }
+
+    function renderIsolatedDay(group) {
+        const section = document.createElement('section');
+        section.className = 'day-section';
+        section.dataset.date = group.date;
+
+        section.appendChild(makeHeading(group.date));
+
+        const grid = document.createElement('div');
+        grid.className = 'day-photos';
+        grid.style.setProperty('--row-columns', capacity);
+
+        addPhotos(grid, group);
+
+        section.appendChild(grid);
+        frag.appendChild(section);
+    }
+
+    for (const group of groups) {
+        const count = group.photos.length;
+
+        // A full-row day or larger owns its rows completely.
+        if (count >= capacity) {
+            flushPending();
+            renderIsolatedDay(group);
+            continue;
+        }
+
+        // Never split a date between rows.
+        if (pendingCount + count > capacity) {
+            flushPending();
+        }
+
+        pending.push(group);
+        pendingCount += count;
+
+        // A completely filled row is closed immediately.
+        if (pendingCount === capacity) {
+            flushPending();
+        }
+    }
+
+    flushPending();
     gallery.appendChild(frag);
+
+    $('empty').classList.toggle(
+        'active',
+        state.photos.length === 0
+    );
+
+    updateSelectionUI();
+    if (append) {
+        requestAnimationFrame(() => {
+        window.scrollTo(0, savedScrollY);
+    });
 }
+}
+
+function updateSelectionUI() {
+    const count = state.selectedIds.size;
+
+    $('selectionToolbar').hidden = !state.selectionMode;
+    $('selectionCount').textContent = `${count} selected`;
+
+    $('selectMode').classList.toggle('active', state.selectionMode);
+    $('selectMode').setAttribute(
+        'aria-pressed',
+        String(state.selectionMode)
+    );
+
+    $('gallery').classList.toggle(
+        'selection-mode',
+        state.selectionMode
+    );
+}
+
+function setSelectionMode(enabled) {
+    state.selectionMode = enabled;
+
+    if (!enabled) {
+        state.selectedIds.clear();
+    }
+
+    render(state.photos.slice());
+    renderGalleryLayout();
+    updateSelectionUI();
+}
+
+function renderGalleryLayout() {
+    const gallery = $('gallery');
+    gallery.dataset.layout = state.layout;
+
+    $('gridSquare').classList.toggle(
+        'active',
+        state.layout === 'square'
+    );
+    $('gridOriginal').classList.toggle(
+        'active',
+        state.layout === 'original'
+    );
+    $('gridCompact').classList.toggle(
+        'active',
+        state.layout === 'compact'
+    );
+
+    for (const [id, value] of [
+        ['gridSquare', 'square'],
+        ['gridOriginal', 'original'],
+        ['gridCompact', 'compact']
+    ]) {
+        $(id).setAttribute(
+            'aria-pressed',
+            String(state.layout === value)
+        );
+    }
+
+    gallery.querySelectorAll('.photo').forEach(el => {
+        const p = state.photos.find(
+            photo => photo.id === Number(el.dataset.id)
+        );
+
+        if (!p) return;
+
+        if (state.layout === 'original') {
+            el.style.aspectRatio =
+                p.width > 0 && p.height > 0
+                    ? `${p.width} / ${p.height}`
+                    : 'auto';
+        } else {
+            el.style.aspectRatio = '1 / 1';
+        }
+    });
+}
+
+$('selectMode').addEventListener('click', () => {
+    setSelectionMode(!state.selectionMode);
+});
+
+$('clearSelection').addEventListener('click', () => {
+    state.selectedIds.clear();
+    setSelectionMode(true);
+});
+
+$('exitSelection').addEventListener('click', () => {
+    setSelectionMode(false);
+});
+
+$('openSelected').addEventListener('click', () => {
+    const idx = state.photos.findIndex(
+        p => state.selectedIds.has(p.id)
+    );
+
+    if (idx >= 0) {
+        const photo = $('gallery').querySelector(
+            `[data-id="${state.photos[idx].id}"]`
+        );
+        setSelectionMode(false);
+        openLb(idx);
+    }
+});
+
+$('gridSquare').addEventListener('click', () => {
+    state.layout = 'square';
+    renderGalleryLayout();
+});
+
+$('gridOriginal').addEventListener('click', () => {
+    state.layout = 'original';
+    renderGalleryLayout();
+});
+
+$('gridCompact').addEventListener('click', () => {
+    state.layout = 'compact';
+    renderGalleryLayout();
+});
 
 function removePhotoFromGallery(id) {
     const el = $('gallery').querySelector(`[data-id="${id}"]`);
@@ -366,9 +697,11 @@ async function updateStats() {
 function openLb(idx) {
     state.idx = idx;
     state.infoPanelOpen = false;
+
     $('infoPanel').classList.remove('active');
     $('lightbox').classList.add('active');
     document.body.style.overflow = 'hidden';
+
     loadLbImg();
 }
 
@@ -379,45 +712,67 @@ function closeLb() {
     document.body.style.overflow = '';
 }
 
-function loadLbImg() {
+function loadLbImg(sourceEl = null) {
     const p = state.photos[state.idx];
     if (!p) return;
-    
+
     const lbImg = $('lbImg');
     const lbSpinner = $('lbSpinner');
-    
+
+    resetZoom();
+
     lbImg.style.display = 'none';
+    lbImg.style.opacity = '1';
     lbSpinner.style.display = 'block';
-    
+
     $('lbTitle').textContent = p.filename || '';
-    $('lbCounter').textContent = `${state.idx + 1} / ${state.photos.length}`;
+    $('lbCounter').textContent =
+        `${state.idx + 1} / ${state.photos.length}`;
     $('lbDims').textContent = '';
-    
+
+    $('lbPrev').disabled = state.idx === 0;
+    $('lbNext').disabled =
+        state.idx >= state.photos.length - 1;
+
     const img = new Image();
+
     img.onload = () => {
+
+        if (state.photos[state.idx]?.id !== p.id) return;
+
         lbImg.src = img.src;
         lbImg.style.display = 'block';
         lbSpinner.style.display = 'none';
-        $('lbDims').textContent = `${img.naturalWidth} × ${img.naturalHeight}`;
+
+        $('lbDims').textContent =
+            `${img.naturalWidth} × ${img.naturalHeight}`;
+        lbImg.style.opacity = '1';
+        
     };
+
     img.onerror = () => {
+        if (state.photos[state.idx]?.id !== p.id) return;
+
         lbSpinner.style.display = 'none';
+        lbImg.style.display = 'none';
         $('lbDims').textContent = 'Failed to load';
+        showToast('Failed to load photo', 'error');
     };
-    img.src = '/image/' + p.id;
-    
-    $('lbPrev').disabled = state.idx === 0;
-    $('lbNext').disabled = state.idx >= state.photos.length - 1;
-    
+
+    img.src = '/image/' + encodeURIComponent(p.id);
+
     if (state.idx + 1 < state.photos.length) {
-        new Image().src = '/image/' + state.photos[state.idx + 1].id;
+        new Image().src =
+            '/image/' + encodeURIComponent(
+                state.photos[state.idx + 1].id
+            );
     }
+
     if (state.idx > 0) {
-        new Image().src = '/image/' + state.photos[state.idx - 1].id;
-    }
-    
-    if (state.infoPanelOpen) {
-        loadInfoPanel();
+        new Image().src =
+            '/image/' + encodeURIComponent(
+                state.photos[state.idx - 1].id
+            );
     }
 }
 
@@ -499,7 +854,6 @@ async function loadInfoPanel() {
     try {
         const d = await fetchDetail(p.id);
 
-        // The user may have navigated to another photo while loading.
         if (
             !state.infoPanelOpen ||
             state.photos[state.idx]?.id !== p.id
@@ -640,41 +994,12 @@ function hideDeleteModal() {
     $('deleteModal').classList.remove('active');
 }
 
-async function confirmDelete() {
+function confirmDelete() { 
     if (!state.deleteTarget) return;
-    
-    const p = state.deleteTarget;
-    const currentIdx = state.idx;
-    
+
     hideDeleteModal();
-    
-    try {
-        const result = await deletePhoto(p.id);
-        
-        if (result.success) {
-            state.total = Math.max(0, state.total - 1);
-            showToast('Photo deleted', 'success');
-            removePhotoFromGallery(p.id);
-            
-            if (state.photos.length === 0) {
-                closeLb();
-                $('empty').classList.add('active');
-            } else if (currentIdx >= state.photos.length) {
-                state.idx = state.photos.length - 1;
-                loadLbImg();
-            } else {
-                loadLbImg();
-            }
-            
-            updateStats();
-        } else {
-            showToast(result.error || 'Failed to delete', 'error');
-        }
-    } catch (e) {
-        console.error('Delete error:', e);
-        showToast(e.message || 'Failed to delete photo', 'error');
-    }
-}
+
+    showToast('Deletion is currently disabled', 'info'); }
 
 async function rescan() {
     const btn = $('rescan');
@@ -702,10 +1027,20 @@ async function rescan() {
 }
 
 const observer = new IntersectionObserver(entries => {
-    if (entries[0].isIntersecting && !state.loading && state.hasMore) {
+    const entry = entries[0];
+
+    if (
+        entry.isIntersecting &&
+        !state.loading &&
+        state.hasMore
+    ) {
         loadMore();
     }
-}, { rootMargin: '400px' });
+}, {
+    rootMargin: '200px 0px',
+    threshold: 0
+});
+
 observer.observe($('sentinel'));
 
 let scrollTicking = false;
@@ -722,8 +1057,40 @@ window.addEventListener('scroll', () => {
 $('gallery').addEventListener('click', e => {
     const photo = e.target.closest('.photo');
     if (!photo) return;
-    const idx = state.photos.findIndex(p => p.id === parseInt(photo.dataset.id));
-    if (idx >= 0) openLb(idx);
+
+    const id = Number(photo.dataset.id);
+    const idx = state.photos.findIndex(p => p.id === id);
+    if (idx < 0) return;
+
+    if (state.selectionMode) {
+        if (state.selectedIds.has(id)) {
+            state.selectedIds.delete(id);
+        } else {
+            state.selectedIds.add(id);
+        }
+
+        photo.classList.toggle(
+            'selected',
+            state.selectedIds.has(id)
+        );
+
+        const check = photo.querySelector('.selection-check');
+
+        if (state.selectedIds.has(id) && !check) {
+            const mark = document.createElement('span');
+            mark.className = 'selection-check';
+            mark.textContent = '✓';
+            mark.setAttribute('aria-hidden', 'true');
+            photo.appendChild(mark);
+        } else if (!state.selectedIds.has(id) && check) {
+            check.remove();
+        }
+
+        updateSelectionUI();
+        return;
+    }
+
+    openLb(idx, photo);
 });
 
 $('search').addEventListener('input', e => {searchRequestId++; doSearch(e.target.value);});
@@ -806,6 +1173,97 @@ $('lbContent').addEventListener('touchend', e => {
         navLb(dx > 0 ? 1 : -1);
     }
 }, { passive: true });
+
+const lbContent = $('lbContent');
+const lbImg = $('lbImg');
+
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 5;
+const ZOOM_STEP = 1.15;
+
+function applyZoom() {
+    lbImg.style.transform =
+        `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+
+    lbImg.classList.toggle('zoomed', state.zoom > MIN_ZOOM);
+    lbImg.classList.toggle('dragging', state.dragging);
+}
+
+function resetZoom() {
+    state.zoom = 1;
+    state.panX = 0;
+    state.panY = 0;
+    state.dragging = false;
+    lbImg.style.transform = '';
+    lbImg.classList.remove('zoomed', 'dragging');
+}
+
+lbContent.addEventListener('wheel', e => {
+    if (!$('lightbox').classList.contains('active')) return;
+
+    e.preventDefault();
+
+    const oldZoom = state.zoom || 1;
+    const factor = e.deltaY < 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
+    const newZoom = Math.min(
+        MAX_ZOOM,
+        Math.max(MIN_ZOOM, oldZoom * factor)
+    );
+
+    if (newZoom === oldZoom) return;
+
+    // Pointer position relative to the image container's center.
+    const rect = lbContent.getBoundingClientRect();
+    const pointerX = e.clientX - rect.left - rect.width / 2;
+    const pointerY = e.clientY - rect.top - rect.height / 2;
+
+    // Keep the point beneath the pointer stationary while zooming.
+    state.panX = pointerX - (pointerX - state.panX) * (newZoom / oldZoom);
+    state.panY = pointerY - (pointerY - state.panY) * (newZoom / oldZoom);
+    state.zoom = newZoom;
+
+    if (state.zoom === MIN_ZOOM) {
+        state.panX = 0;
+        state.panY = 0;
+    }
+
+    applyZoom();
+}, { passive: false });
+
+// Drag the image while zoomed in.
+lbImg.addEventListener('pointerdown', e => {
+    if (state.zoom <= MIN_ZOOM || e.button !== 0) return;
+
+    e.preventDefault();
+
+    state.dragging = true;
+    state.dragStartX = e.clientX;
+    state.dragStartY = e.clientY;
+    state.dragOriginX = state.panX;
+    state.dragOriginY = state.panY;
+
+    lbImg.setPointerCapture(e.pointerId);
+    applyZoom();
+});
+
+lbImg.addEventListener('pointermove', e => {
+    if (!state.dragging) return;
+
+    state.panX = state.dragOriginX + e.clientX - state.dragStartX;
+    state.panY = state.dragOriginY + e.clientY - state.dragStartY;
+
+    applyZoom();
+});
+
+function stopDragging() {
+    if (!state.dragging) return;
+    state.dragging = false;
+    applyZoom();
+}
+
+lbImg.addEventListener('pointerup', stopDragging);
+lbImg.addEventListener('pointercancel', stopDragging);
+lbImg.addEventListener('lostpointercapture', stopDragging);
 
 (async () => {
     console.log('[Photos] Initializing gallery');
