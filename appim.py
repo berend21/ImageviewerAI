@@ -11,9 +11,10 @@ import time
 import os
 from flask_wtf.csrf import CSRFProtect, CSRFError
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dotenv import load_dotenv
 
 
-
+load_dotenv(Path(__file__).resolve().parent / ".env")
 IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.tiff'}
 THUMB_SIZE = (300, 300)
 WEBP_QUALITY = 75
@@ -21,9 +22,6 @@ PER_PAGE = 100
 Image.MAX_IMAGE_PIXELS = 100_000_000
 ImageFile.LOAD_TRUNCATED_IMAGES = False
 INDEX_WORKERS = int(os.environ.get("INDEX_WORKERS", max(1, min(2, os.cpu_count() or 2))))
-
-
-
 
 db_lock = Lock()
 
@@ -42,9 +40,6 @@ def get_db(db_path: Path):
     conn.execute("PRAGMA cache_size=-64000")
 
     return conn
-
-
-
 
 class LRUCache:
     def __init__(self, max_size_mb=100):
@@ -107,14 +102,21 @@ class DatabasePool:
         return get_db(self.db_path)
 
     def return_connection(self, conn):
+        try:
+            if conn.in_transaction:
+                conn.rollback()
+        except sqlite3.Error:
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
+            return
+
         with self.lock:
             if len(self.connections) < self.max_connections:
                 self.connections.append(conn)
             else:
-                try:
-                    conn.close()
-                except Exception as e:
-                    print(f"Something went wrong: {e}")
+                conn.close()
 
 
     def execute(self, query, params=None):
@@ -490,6 +492,7 @@ class Indexer:
         self.folder = folder
         self.db_path = db_path
         self._running = False
+        self._scan_lock = Lock()
 
     def scan_folder(self) -> list:
         images = []
@@ -619,9 +622,19 @@ class Indexer:
         )
 
         return fhash, data
-
-
     def quick_scan(self, show_progress=True):
+        if not self._scan_lock.acquire(blocking=False):
+            if show_progress:
+                print("  Scan already running; skipping.")
+            return 0
+
+        try:
+            return self._quick_scan_impl(show_progress)
+        finally:
+            self._scan_lock.release()
+
+
+    def _quick_scan_impl(self, show_progress=True):
         scan_started = time.perf_counter()
         db_started = time.perf_counter()
         existing = self.get_indexed()
@@ -963,12 +976,14 @@ def create_app(folder: Path, db_path: Path):
     global db_pool
 
     app = Flask(__name__)
+    secret_key = os.environ.get("FLASK_SECRET_KEY")
+    ##python -c "import secrets; print(secrets.token_hex(32))"
+
+    if not secret_key:
+        raise RuntimeError("FLASK_SECRET_KEY is missing from the environment or .env file")
 
     app.config.update(
-        SECRET_KEY=os.environ.get(
-            "FLASK_SECRET_KEY",
-            "dev-only-change-this-secret"
-        ),
+        SECRET_KEY=secret_key,
         WTF_CSRF_ENABLED=True,
         WTF_CSRF_TIME_LIMIT=3600,
         SESSION_COOKIE_HTTPONLY=True,
@@ -1003,57 +1018,109 @@ def create_app(folder: Path, db_path: Path):
 
         try:
             if search:
-                safe = search.replace('"', '""').replace("'", "''")
-                ids = []
+                fts_query = '"' + search.replace('"', '""') + '"*'
 
                 try:
-                    rows = db_pool.execute(
-                        "SELECT rowid FROM photos_fts WHERE photos_fts MATCH ? ORDER BY rank LIMIT 10000",
-                        (f'"{safe}"*',)
+                    count_row = db_pool.execute_one(
+                        """
+                        SELECT COUNT(*) AS cnt
+                        FROM photos_fts
+                        WHERE photos_fts MATCH ?
+                        """,
+                        (fts_query,)
                     )
-                    ids = [r[0] for r in rows]
-                except Exception as e:
-                    print(f"Something went wrong: {e}")
+                    total = count_row["cnt"] if count_row else 0
 
-                if not ids:
-                    rows = db_pool.execute(
-                        "SELECT id FROM photos WHERE filename LIKE ? LIMIT 10000",
-                        (f'%{search}%',)
+                    if total:
+                        rows = db_pool.execute(
+                            """
+                            SELECT p.id, p.filename, p.width, p.height,
+                                p.exif_date, p.file_modified,
+                                p.dominant_color,
+                                p.thumb_webp IS NOT NULL AS has_webp,
+                                p.tags_json IS NOT NULL AS has_tags
+                            FROM photos_fts AS f
+                            JOIN photos AS p ON p.id = f.rowid
+                            WHERE photos_fts MATCH ?
+                            ORDER BY f.rank, p.id
+                            LIMIT ? OFFSET ?
+                            """,
+                            (fts_query, per_page, (page - 1) * per_page)
+                        )
+                        photos = [dict(r) for r in rows]
+
+                    else:
+                        # Preserve filename fallback when FTS finds no matches.
+                        pattern = f"%{search}%"
+                        count_row = db_pool.execute_one(
+                            "SELECT COUNT(*) AS cnt FROM photos WHERE filename LIKE ?",
+                            (pattern,)
+                        )
+                        total = count_row["cnt"] if count_row else 0
+
+                        rows = db_pool.execute(
+                            """
+                            SELECT id, filename, width, height, exif_date,
+                                file_modified, dominant_color,
+                                thumb_webp IS NOT NULL AS has_webp,
+                                tags_json IS NOT NULL AS has_tags
+                            FROM photos
+                            WHERE filename LIKE ?
+                            ORDER BY filename
+                            LIMIT ? OFFSET ?
+                            """,
+                            (pattern, per_page, (page - 1) * per_page)
+                        )
+                        photos = [dict(r) for r in rows]
+
+                except sqlite3.OperationalError:
+                    # Fall back if the FTS query is invalid.
+                    pattern = f"%{search}%"
+                    count_row = db_pool.execute_one(
+                        "SELECT COUNT(*) AS cnt FROM photos WHERE filename LIKE ?",
+                        (pattern,)
                     )
-                    ids = [r[0] for r in rows]
+                    total = count_row["cnt"] if count_row else 0
 
-                total = len(ids)
-                page_ids = ids[(page - 1) * per_page: page * per_page]
+                    rows = db_pool.execute(
+                        """
+                        SELECT id, filename, width, height, exif_date,
+                            file_modified, dominant_color,
+                            thumb_webp IS NOT NULL AS has_webp,
+                            tags_json IS NOT NULL AS has_tags
+                        FROM photos
+                        WHERE filename LIKE ?
+                        ORDER BY filename
+                        LIMIT ? OFFSET ?
+                        """,
+                        (pattern, per_page, (page - 1) * per_page)
+                    )
+                    photos = [dict(r) for r in rows]
 
-                if page_ids:
-                    placeholders = ','.join('?' * len(page_ids))
-                    rows = db_pool.execute(f"""
-                        SELECT id, filename, width, height, exif_date, file_modified,
-                               dominant_color, thumb_webp IS NOT NULL as has_webp,
-                               tags_json IS NOT NULL as has_tags
-                        FROM photos WHERE id IN ({placeholders})
-                    """, tuple(page_ids))
-
-                    id_map = {r['id']: dict(r) for r in rows}
-                    photos = [id_map[i] for i in page_ids if i in id_map]
-                else:
-                    photos = []
             else:
-                order_sql = "DESC" if order == 'desc' else "ASC"
+                order_sql = "DESC" if order == "desc" else "ASC"
                 order_by = {
-                    'date': f"COALESCE(exif_date, file_modified) {order_sql}",
-                    'name': f"filename {order_sql}",
+                    "date": f"COALESCE(exif_date, file_modified) {order_sql}",
+                    "name": f"filename {order_sql}",
                 }.get(sort, f"id {order_sql}")
 
-                total_row = db_pool.execute_one("SELECT COUNT(*) as cnt FROM photos")
-                total = total_row['cnt'] if total_row else 0
+                total_row = db_pool.execute_one(
+                    "SELECT COUNT(*) AS cnt FROM photos"
+                )
+                total = total_row["cnt"] if total_row else 0
 
-                rows = db_pool.execute(f"""
-                    SELECT id, filename, width, height, exif_date, file_modified,
-                           dominant_color, thumb_webp IS NOT NULL as has_webp,
-                           tags_json IS NOT NULL as has_tags
-                    FROM photos ORDER BY {order_by} LIMIT ? OFFSET ?
-                """, (per_page, (page - 1) * per_page))
+                rows = db_pool.execute(
+                    f"""
+                    SELECT id, filename, width, height, exif_date,
+                        file_modified, dominant_color,
+                        thumb_webp IS NOT NULL AS has_webp,
+                        tags_json IS NOT NULL AS has_tags
+                    FROM photos
+                    ORDER BY {order_by}
+                    LIMIT ? OFFSET ?
+                    """,
+                    (per_page, (page - 1) * per_page)
+                )
                 photos = [dict(r) for r in rows]
 
             for p in photos:
@@ -1138,6 +1205,8 @@ def create_app(folder: Path, db_path: Path):
             with db_lock:
                 conn = get_db(db_path)
                 try:
+                    conn.execute("BEGIN IMMEDIATE")
+
                     conn.execute(
                         "DELETE FROM photos WHERE id = ?",
                         (photo_id,)
@@ -1151,6 +1220,11 @@ def create_app(folder: Path, db_path: Path):
                     except Exception as e:
                         print(f"FTS delete warning: {e}")
 
+                    conn.execute("COMMIT")
+
+                except Exception:
+                    conn.execute("ROLLBACK")
+                    raise
                 finally:
                     conn.close()
 
