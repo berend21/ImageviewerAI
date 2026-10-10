@@ -4,7 +4,7 @@ import hashlib
 from pathlib import Path
 from datetime import datetime, timezone
 from io import BytesIO
-from PIL import Image, ExifTags, ImageFile
+from PIL import Image, ExifTags, ImageFile, ImageOps
 from flask import Flask, request, jsonify, Response, render_template, send_file
 from threading import Thread, Lock
 import time
@@ -493,26 +493,50 @@ class Indexer:
         self.db_path = db_path
         self._running = False
         self._scan_lock = Lock()
+        self._last_scan_complete = False
 
     def scan_folder(self) -> list:
         images = []
+        self._last_scan_complete = True
 
         def scan_dir(path):
             try:
-                for entry in os.scandir(path):
-                    try:
-                        if entry.is_dir(follow_symlinks=False):
-                            scan_dir(entry.path)
-                        elif entry.is_file(follow_symlinks=False):
-                            ext = os.path.splitext(entry.name)[1].lower()
-                            if ext in IMAGE_EXTENSIONS:
-                                images.append(Path(entry.path))
-                    except Exception as e:
-                        print(f"Something went wrong: {e}")
-            except Exception as e:
-                print(f"Something went wrong: {e}")
+                with os.scandir(path) as entries:
+                    for entry in entries:
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                scan_dir(entry.path)
+
+                            elif entry.is_file(follow_symlinks=False):
+                                ext = os.path.splitext(entry.name)[1].lower()
+
+                                if ext in IMAGE_EXTENSIONS:
+                                    images.append(Path(entry.path))
+
+                        except OSError as e:
+                            self._last_scan_complete = False
+                            print(
+                                f"  Scan warning: cannot inspect "
+                                f"{entry.path}: {e}"
+                            )
+
+            except OSError as e:
+                self._last_scan_complete = False
+                print(f"  Scan warning: cannot read directory {path}: {e}")
+
+        if not self.folder.is_dir():
+            self._last_scan_complete = False
+            print(f"  Scan failed: folder unavailable: {self.folder}")
+            return []
 
         scan_dir(self.folder)
+
+        if not self._last_scan_complete:
+            print(
+                "  WARNING: Scan incomplete. "
+                "Missing database records will NOT be removed."
+            )
+
         return sorted(images)
 
     def get_indexed(self) -> dict:
@@ -590,11 +614,12 @@ class Indexer:
 
         stat = path.stat()
 
-        # Decode the image from the bytes we already read.
         img = Image.open(BytesIO(file_data))
         img.load()
 
         exif = extract_exif_safe(img)
+
+        img = ImageOps.exif_transpose(img)
 
         thumb_webp, dominant_color = make_thumbnail_data(img)
 
@@ -869,22 +894,28 @@ class Indexer:
                             print(f"    DB insert error: {data[0]} - {e}")
                             raise
 
-                    for path_str, info in existing.items():
-                        if path_str not in found_paths:
-                            conn.execute(
-                                "DELETE FROM photos WHERE id=?",
-                                (info['id'],)
-                            )
-
-                            try:
+                    if self._last_scan_complete:
+                        for path_str, info in existing.items():
+                            if path_str not in found_paths:
                                 conn.execute(
-                                    "DELETE FROM photos_fts WHERE rowid=?",
+                                    "DELETE FROM photos WHERE id=?",
                                     (info['id'],)
                                 )
-                            except Exception as e:
-                                print(f"    FTS delete warning: {e}")
 
-                            removed += 1
+                                try:
+                                    conn.execute(
+                                        "DELETE FROM photos_fts WHERE rowid=?",
+                                        (info['id'],)
+                                    )
+                                except Exception as e:
+                                    print(f"    FTS delete warning: {e}")
+
+                                removed += 1
+                    else:
+                        print(
+                            "    Skipping removal of missing records "
+                            "because the scan was incomplete."
+                        )
 
                     for fhash, data in new_images:
                         row = conn.execute(
@@ -1178,66 +1209,9 @@ def create_app(folder: Path, db_path: Path):
 
         return jsonify(d)
 
-    @app.route('/api/photo/<int:photo_id>', methods=['DELETE'])
-    def api_delete_photo(photo_id):
-        try:
-            row = db_pool.execute_one(
-                "SELECT filepath, file_hash FROM photos WHERE id = ?",
-                (photo_id,)
-            )
-
-
-            if not row:
-                return jsonify({'success': False, 'error': 'Photo not found'}), 404
-
-            filepath = row['filepath']
-
-            if safe_check_exists(filepath):
-                try:
-                    os.remove(filepath)
-                except Exception as e:
-                    print(f"Warning: Could not delete file {filepath}: {e}")
-                    return jsonify({
-                        'success': False,
-                        'error': f'Could not delete image file: {e}'
-                    }), 500
-
-            with db_lock:
-                conn = get_db(db_path)
-                try:
-                    conn.execute("BEGIN IMMEDIATE")
-
-                    conn.execute(
-                        "DELETE FROM photos WHERE id = ?",
-                        (photo_id,)
-                    )
-
-                    try:
-                        conn.execute(
-                            "DELETE FROM photos_fts WHERE rowid = ?",
-                            (photo_id,)
-                        )
-                    except Exception as e:
-                        print(f"FTS delete warning: {e}")
-
-                    conn.execute("COMMIT")
-
-                except Exception:
-                    conn.execute("ROLLBACK")
-                    raise
-                finally:
-                    conn.close()
-
-            thumb_cache.delete(f"thumb_{row['file_hash']}_webp")
-
-
-
-            return jsonify({'success': True})
-
-
-        except Exception as e:
-            print(f"Delete error: {e}")
-            return jsonify({'success': False, 'error': str(e)}), 500
+    @app.route('/api/photo/<int:photoid>', methods=['DELETE']) 
+    def apideletephoto(photoid): 
+        return jsonify({ 'success': False, 'error': 'Photo deletion is currently disabled.' }), 403
 
     @app.route('/api/photos/batch')
     def api_photos_batch():
@@ -1408,10 +1382,10 @@ def create_app(folder: Path, db_path: Path):
                 img = Image.open(BytesIO(file_data))
                 img.load()
 
+                img = ImageOps.exif_transpose(img)
                 thumb = make_thumbnail_webp(img)
 
                 img.close()
-
                 db_pool.execute_write(
                     "UPDATE photos SET thumb_webp = ? WHERE id = ?",
                     (thumb, photo_id)
