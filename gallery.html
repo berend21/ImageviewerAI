@@ -12,45 +12,192 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <header>
-        <div class="logo">📷 <span>Photos</span></div>
-        
-        <div class="search-container">
-            <input type="text" class="search" id="search" placeholder="Search..." autocomplete="off">
-            <button class="search-clear" id="searchClear" type="button">✕</button>
+    <header class="photos-header">
+        <div class="header-main">
+            <a href="/" class="logo home-logo" aria-label="Photos home">
+                <svg class="logo-icon"
+                    viewBox="0 0 24 24"
+                    width="25"
+                    height="25"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <path d="M14 4H10L8 7H5a3 3 0 0 0-3 3v8
+                            a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-8
+                            a3 3 0 0 0-3-3h-3z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                </svg>
+                <span>Photos</span>
+            </a>
+
+            <div class="search-container">
+                <span class="search-icon" aria-hidden="true">⌕</span>
+                <input
+                    type="text"
+                    class="search"
+                    id="search"
+                    placeholder="Search photos..."
+                    autocomplete="off"
+                >
+                <button
+                    class="search-clear"
+                    id="searchClear"
+                    type="button"
+                    aria-label="Clear search"
+                >✕</button>
+                <span class="search-shortcut">/</span>
+            </div>
+
+            <div class="header-actions">
+                <button
+                    class="icon-btn"
+                    id="rescan"
+                    type="button"
+                    title="Scan for new photos"
+                    aria-label="Scan for new photos"
+                >
+                    <svg viewBox="0 0 24 24"
+                        width="21" height="21"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M20 7v5h-5"/>
+                        <path d="M4 17v-5h5"/>
+                        <path d="M5.6 9a7 7 0 0 1 11.7-2L20 12"/>
+                        <path d="M4 12l2.7 5a7 7 0 0 0 11.7-2"/>
+                    </svg>
+                </button>
+
+                <button
+                    class="icon-btn"
+                    id="headerSettings"
+                    type="button"
+                    title="Options"
+                    aria-label="Options"
+                >
+                    <svg viewBox="0 0 24 24"
+                        width="21" height="21"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round">
+                        <path d="M4 7h16M4 17h16"/>
+                        <circle cx="9" cy="7" r="2"
+                                fill="#0a0a0a"/>
+                        <circle cx="15" cy="17" r="2"
+                                fill="#0a0a0a"/>
+                    </svg>
+                </button>
+            </div>
         </div>
-        
-        <div class="toolbar">
-            <button class="btn" id="rescan" title="Scan for new photos">
-                <span>↻</span><span>Scan</span>
-            </button>
-            <span class="stats" id="stats"></span>
-        </div>
-    </header>
-    
-    <main>
         <div class="gallery-toolbar">
-            <div class="view-controls">
-                <button class="view-btn active" id="gridSquare"
-                        type="button" aria-pressed="true">
-                    Square
+            <div class="gallery-toolbar-left">
+                <button
+                    class="header-tab active"
+                    id="allPhotosTab"
+                    type="button"
+                    aria-pressed="true"
+                >
+                    All Photos
                 </button>
-                <button class="view-btn" id="gridOriginal"
-                        type="button" aria-pressed="false">
-                    Original ratio
-                </button>
-                <button class="view-btn" id="gridCompact"
-                        type="button" aria-pressed="false">
-                    Compact
+
+                <button
+                    class="header-tab"
+                    id="aiClassifiedTab"
+                    type="button"
+                    aria-pressed="false"
+                >
+                    <span class="ai-sparkle">✦</span>
+                    AI Classified
                 </button>
             </div>
 
-            <button class="view-btn" id="selectMode"
-                    type="button" aria-pressed="false">
-                Select
-            </button>
+            <div class="gallery-toolbar-right">
+                <div class="header-sub">
+
+                <div class="header-summary">
+                    <div class="header-stats" id="headerStats">
+                        <strong id="headerPhotoCount">0 photos</strong>
+                        <span id="headerAiCount">✦ 0 AI classified</span>
+                        <div class="ai-progress">
+                            <span id="aiProgressBar"></span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+                <button
+                    class="toolbar-icon-btn active"
+                    id="toolbarGridView"
+                    type="button"
+                    title="Square grid view"
+                    aria-label="Square grid view"
+                    aria-pressed="true">
+                    <svg viewBox="0 0 24 24"
+                        width="20" height="20"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <rect x="4" y="4" width="6" height="6" rx="1"/>
+                        <rect x="14" y="4" width="6" height="6" rx="1"/>
+                        <rect x="4" y="14" width="6" height="6" rx="1"/>
+                        <rect x="14" y="14" width="6" height="6" rx="1"/>
+                    </svg>
+                </button>
+
+                <button
+                    class="toolbar-icon-btn"
+                    id="toolbarTimelineView"
+                    type="button"
+                    title="Original aspect ratio"
+                    aria-label="Original aspect ratio"
+                    aria-pressed="false">
+                    <svg viewBox="0 0 24 24"
+                        width="20" height="20"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <rect x="3" y="6" width="18" height="12" rx="2"/>
+                        <circle cx="8" cy="10" r="1.3"/>
+                        <path d="m5 15 4-3 3 2 3-4 4 5"/>
+                    </svg>
+                </button>
+                <button
+                    class="toolbar-icon-btn"
+                    id="selectMode"
+                    type="button"
+                    title="Select photos"
+                    aria-label="Select photos"
+                    aria-pressed="false">
+                    <svg viewBox="0 0 24 24"
+                        width="20" height="20"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <rect x="4" y="4" width="16" height="16" rx="3"/>
+                        <path d="m8 12 2.5 2.5L16 9"/>
+                    </svg>
+                </button>
+            </div>
         </div>
 
+        
+    </header>
+    
+    <main>
+        
         <div class="selection-toolbar" id="selectionToolbar"
             hidden>
             <span id="selectionCount">0 selected</span>
@@ -86,6 +233,22 @@
             <button class="lb-btn" id="lbClose" title="Close">✕</button>
             <span class="lb-title" id="lbTitle"></span>
             <button class="lb-btn danger" id="lbDelete" title="Delete">🗑</button>
+            <button class="lb-btn" id="lbRotate" title="Rotate 90° clockwise"
+                aria-label="Rotate photo 90 degrees clockwise">
+                <svg viewBox="0 0 24 24"
+                    width="21" height="21"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true">
+                    <path d="M20 11a8 8 0 0 0-14.9-3L3 11"/>
+                    <path d="M3 5v6h6"/>
+                    <path d="M4 13a8 8 0 0 0 14.9 3L21 13"/>
+                    <path d="M21 19v-6h-6"/>
+                </svg>
+            </button>
             <button class="lb-btn" id="lbInfo" title="Info">ℹ</button>
         </div>
         
@@ -150,7 +313,8 @@ const state = {
     dragStartX: 0,
     dragStartY: 0,
     dragOriginX: 0,
-    dragOriginY: 0
+    dragOriginY: 0,
+    rotation: 0
 };
 let searchRequestId = 0;
 
@@ -215,7 +379,6 @@ async function fetchJson(url, options = {}) {
         credentials: 'same-origin'
     });
 
-    // fetch() resolves normally for HTTP errors, so check explicitly.
     if (!response.ok) {
         let message = `Request failed (${response.status})`;
 
@@ -225,7 +388,6 @@ async function fetchJson(url, options = {}) {
                 message = body.error;
             }
         } catch {
-            // Keep the HTTP status message if the body isn't JSON.
         }
 
         throw new Error(message);
@@ -271,10 +433,13 @@ function createPhotoEl(p) {
     if (state.selectedIds.has(p.id)) {
         div.classList.add('selected');
     }
+    div.style.aspectRatio = state.layout === 'original'
+    ? (p.width > 0 && p.height > 0
+        ? `${p.width} / ${p.height}`
+        : 'auto')
+    : '1 / 1';
 
-    if (state.layout === 'original' && p.width > 0 && p.height > 0) {
-        div.style.aspectRatio = `${p.width} / ${p.height}`;
-    }
+
 
     const img = document.createElement('img');
     img.loading = 'lazy';
@@ -328,12 +493,10 @@ function getRowCapacity() {
 function render(photos, append = false) {
     const gallery = $('gallery');
 
-    // Keep previously loaded photos when another page is appended.
     const allPhotos = append
         ? [...state.photos, ...photos]
         : [...photos];
 
-    // Rebuild the layout so shared rows remain correct across pages.
     state.photos = allPhotos;
 
     const savedScrollY = window.scrollY;
@@ -430,14 +593,12 @@ function render(photos, append = false) {
     for (const group of groups) {
         const count = group.photos.length;
 
-        // A full-row day or larger owns its rows completely.
         if (count >= capacity) {
             flushPending();
             renderIsolatedDay(group);
             continue;
         }
 
-        // Never split a date between rows.
         if (pendingCount + count > capacity) {
             flushPending();
         }
@@ -499,48 +660,47 @@ function setSelectionMode(enabled) {
 
 function renderGalleryLayout() {
     const gallery = $('gallery');
+
     gallery.dataset.layout = state.layout;
 
-    $('gridSquare').classList.toggle(
+    const squareBtn = $('toolbarGridView');
+    const originalBtn = $('toolbarTimelineView');
+
+    squareBtn.classList.toggle(
         'active',
         state.layout === 'square'
     );
-    $('gridOriginal').classList.toggle(
+
+    originalBtn.classList.toggle(
         'active',
         state.layout === 'original'
     );
-    $('gridCompact').classList.toggle(
-        'active',
-        state.layout === 'compact'
+
+    squareBtn.setAttribute(
+        'aria-pressed',
+        String(state.layout === 'square')
     );
 
-    for (const [id, value] of [
-        ['gridSquare', 'square'],
-        ['gridOriginal', 'original'],
-        ['gridCompact', 'compact']
-    ]) {
-        $(id).setAttribute(
-            'aria-pressed',
-            String(state.layout === value)
-        );
-    }
+    originalBtn.setAttribute(
+        'aria-pressed',
+        String(state.layout === 'original')
+    );
 
-    gallery.querySelectorAll('.photo').forEach(el => {
+    for (const el of gallery.querySelectorAll('.photo')) {
         const p = state.photos.find(
             photo => photo.id === Number(el.dataset.id)
         );
 
-        if (!p) return;
+        if (!p) continue;
 
-        if (state.layout === 'original') {
-            el.style.aspectRatio =
+        el.style.aspectRatio = state.layout === 'original'
+            ? (
                 p.width > 0 && p.height > 0
                     ? `${p.width} / ${p.height}`
-                    : 'auto';
-        } else {
-            el.style.aspectRatio = '1 / 1';
-        }
-    });
+                    : 'auto'
+            )
+            : '1 / 1';
+    }
 }
 
 $('selectMode').addEventListener('click', () => {
@@ -570,18 +730,13 @@ $('openSelected').addEventListener('click', () => {
     }
 });
 
-$('gridSquare').addEventListener('click', () => {
+$('toolbarGridView').addEventListener('click', () => {
     state.layout = 'square';
     renderGalleryLayout();
 });
 
-$('gridOriginal').addEventListener('click', () => {
+$('toolbarTimelineView').addEventListener('click', () => {
     state.layout = 'original';
-    renderGalleryLayout();
-});
-
-$('gridCompact').addEventListener('click', () => {
-    state.layout = 'compact';
     renderGalleryLayout();
 });
 
@@ -674,21 +829,22 @@ const doSearch = debounce(async (q) => {
 async function updateStats() {
     try {
         const s = await fetchStats();
-        const stats = $('stats');
-        stats.replaceChildren();
 
-        const total = document.createElement('span');
-        total.textContent =
-            `${Number(s.total) || 0} photos`;
-        stats.appendChild(total);
+        const total = Number(s.total) || 0;
+        const tagged = Number(s.with_tags) || 0;
 
-        if (Number(s.with_tags) > 0) {
-            const highlight = document.createElement('span');
-            highlight.className = 'highlight';
-            highlight.textContent = `${Number(s.with_tags)} AI`;
+        $('headerPhotoCount').textContent =
+            `${total.toLocaleString()} photos`;
 
-            stats.append(' · ', highlight);
-        }
+        $('headerAiCount').textContent =
+            `✦ ${tagged.toLocaleString()} AI classified`;
+
+        const progress = total > 0
+            ? Math.min(100, (tagged / total) * 100)
+            : 0;
+
+        $('aiProgressBar').style.width = `${progress}%`;
+
     } catch (e) {
         console.error('Stats error:', e);
     }
@@ -778,9 +934,15 @@ function loadLbImg(sourceEl = null) {
 
 function navLb(dir) {
     const newIdx = state.idx + dir;
+
     if (newIdx >= 0 && newIdx < state.photos.length) {
         state.idx = newIdx;
         loadLbImg();
+
+        // Refresh photo details if the info panel is open.
+        if (state.infoPanelOpen) {
+            loadInfoPanel();
+        }
     }
 }
 
@@ -865,7 +1027,7 @@ async function loadInfoPanel() {
 
         addInfoRow(content, 'Filename', d.filename);
 
-        const dateTaken = formatDate(d.exif_date);
+        const dateTaken = formatDate(d.date_taken);
         const fileModified = formatDate(d.file_modified);
 
         if (dateTaken) {
@@ -1183,7 +1345,9 @@ const ZOOM_STEP = 1.15;
 
 function applyZoom() {
     lbImg.style.transform =
-        `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+        `translate(${state.panX}px, ${state.panY}px) ` +
+        `rotate(${state.rotation}deg) ` +
+        `scale(${state.zoom})`;
 
     lbImg.classList.toggle('zoomed', state.zoom > MIN_ZOOM);
     lbImg.classList.toggle('dragging', state.dragging);
@@ -1191,6 +1355,7 @@ function applyZoom() {
 
 function resetZoom() {
     state.zoom = 1;
+    state.rotation = 0;
     state.panX = 0;
     state.panY = 0;
     state.dragging = false;
@@ -1212,12 +1377,10 @@ lbContent.addEventListener('wheel', e => {
 
     if (newZoom === oldZoom) return;
 
-    // Pointer position relative to the image container's center.
     const rect = lbContent.getBoundingClientRect();
     const pointerX = e.clientX - rect.left - rect.width / 2;
     const pointerY = e.clientY - rect.top - rect.height / 2;
 
-    // Keep the point beneath the pointer stationary while zooming.
     state.panX = pointerX - (pointerX - state.panX) * (newZoom / oldZoom);
     state.panY = pointerY - (pointerY - state.panY) * (newZoom / oldZoom);
     state.zoom = newZoom;
@@ -1229,8 +1392,11 @@ lbContent.addEventListener('wheel', e => {
 
     applyZoom();
 }, { passive: false });
+$('lbRotate').addEventListener('click', () => {
+    state.rotation = (state.rotation + 90) % 360;
+    applyZoom();
+});
 
-// Drag the image while zoomed in.
 lbImg.addEventListener('pointerdown', e => {
     if (state.zoom <= MIN_ZOOM || e.button !== 0) return;
 
