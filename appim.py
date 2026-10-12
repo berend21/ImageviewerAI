@@ -182,7 +182,7 @@ def init_db(db_path: Path):
                 width INTEGER,
                 height INTEGER,
 
-                exif_date TEXT,
+                date_taken TEXT,
                 exif_camera TEXT,
                 exif_gps_lat REAL,
                 exif_gps_lon REAL,
@@ -204,7 +204,7 @@ def init_db(db_path: Path):
         conn.execute("""CREATE UNIQUE INDEX IF NOT EXISTS idx_photos_filepath_unique ON photos(filepath)""")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_file_hash ON photos(file_hash)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_filename ON photos(filename)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_exif_date ON photos(exif_date)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_date_taken ON photos(date_taken)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_file_modified ON photos(file_modified)")
     else:
         for col, col_type in [
@@ -740,7 +740,7 @@ class Indexer:
                                         file_modified=?,
                                         width=?,
                                         height=?,
-                                        exif_date=?,
+                                        date_taken=?,
                                         exif_camera=?,
                                         exif_gps_lat=?,
                                         exif_gps_lon=?,
@@ -756,7 +756,7 @@ class Indexer:
                                     data[3],   # file_modified
                                     data[4],   # width
                                     data[5],   # height
-                                    data[6],   # exif_date
+                                    data[6],   # date_taken
                                     data[7],   # camera
                                     data[8],   # gps lat
                                     data[9],   # gps lon
@@ -877,7 +877,7 @@ class Indexer:
                                     file_modified,
                                     width,
                                     height,
-                                    exif_date,
+                                    date_taken,
                                     exif_camera,
                                     exif_gps_lat,
                                     exif_gps_lon,
@@ -1066,7 +1066,7 @@ def create_app(folder: Path, db_path: Path):
                         rows = db_pool.execute(
                             """
                             SELECT p.id, p.filename, p.width, p.height,
-                                p.exif_date, p.file_modified,
+                                p.date_taken, p.file_modified,
                                 p.dominant_color,
                                 p.thumb_webp IS NOT NULL AS has_webp,
                                 p.tags_json IS NOT NULL AS has_tags
@@ -1091,7 +1091,7 @@ def create_app(folder: Path, db_path: Path):
 
                         rows = db_pool.execute(
                             """
-                            SELECT id, filename, width, height, exif_date,
+                            SELECT id, filename, width, height, date_taken,
                                 file_modified, dominant_color,
                                 thumb_webp IS NOT NULL AS has_webp,
                                 tags_json IS NOT NULL AS has_tags
@@ -1115,7 +1115,7 @@ def create_app(folder: Path, db_path: Path):
 
                     rows = db_pool.execute(
                         """
-                        SELECT id, filename, width, height, exif_date,
+                        SELECT id, filename, width, height, date_taken,
                             file_modified, dominant_color,
                             thumb_webp IS NOT NULL AS has_webp,
                             tags_json IS NOT NULL AS has_tags
@@ -1129,11 +1129,22 @@ def create_app(folder: Path, db_path: Path):
                     photos = [dict(r) for r in rows]
 
             else:
-                order_sql = "DESC" if order == "desc" else "ASC"
-                order_by = {
-                    "date": f"COALESCE(exif_date, file_modified) {order_sql}",
-                    "name": f"filename {order_sql}",
-                }.get(sort, f"id {order_sql}")
+                sort_value = request.args.get('sort', 'newest')
+
+                if sort_value == 'oldest':
+                    order_by = """
+                        COALESCE(date_taken, file_modified) ASC,
+                        id ASC
+                    """
+                elif sort_value == 'newest':
+                    order_by = """
+                        COALESCE(date_taken, file_modified) DESC,
+                        id DESC
+                    """
+                elif sort_value == 'name':
+                    order_by = "filename COLLATE NOCASE ASC, id ASC"
+                else:
+                    order_by = "id DESC"
 
                 total_row = db_pool.execute_one(
                     "SELECT COUNT(*) AS cnt FROM photos"
@@ -1142,7 +1153,7 @@ def create_app(folder: Path, db_path: Path):
 
                 rows = db_pool.execute(
                     f"""
-                    SELECT id, filename, width, height, exif_date,
+                    SELECT id, filename, width, height, date_taken,
                         file_modified, dominant_color,
                         thumb_webp IS NOT NULL AS has_webp,
                         tags_json IS NOT NULL AS has_tags
@@ -1152,10 +1163,11 @@ def create_app(folder: Path, db_path: Path):
                     """,
                     (per_page, (page - 1) * per_page)
                 )
+
                 photos = [dict(r) for r in rows]
 
             for p in photos:
-                date_str = p.get('exif_date') or p.get('file_modified') or ''
+                date_str = p.get('date_taken') or p.get('file_modified') or ''
                 p['date_group'] = date_str[:10] if date_str else ''
 
         except Exception as e:
@@ -1188,7 +1200,7 @@ def create_app(folder: Path, db_path: Path):
         d = dict(row)
         d['tags'] = json.loads(d['tags_json']) if d.get('tags_json') else {}
         d['categories'] = json.loads(d['categories_json']) if d.get('categories_json') else {}
-        d['date'] = d.get('exif_date') or d.get('file_modified')
+        d['date'] = d.get('date_taken') or d.get('file_modified')
         if (
             d.get('exif_gps_lat') is not None
             and d.get('exif_gps_lon') is not None
@@ -1223,7 +1235,7 @@ def create_app(folder: Path, db_path: Path):
             id_list = [int(i) for i in ids.split(',')[:100]]
             placeholders = ','.join('?' * len(id_list))
             rows = db_pool.execute(f"""
-                SELECT id, filename, width, height, exif_date, file_modified,
+                SELECT id, filename, width, height, date_taken, file_modified,
                        dominant_color, thumb_webp IS NOT NULL as has_webp,
                        tags_json IS NOT NULL as has_tags
                 FROM photos WHERE id IN ({placeholders})
@@ -1241,8 +1253,8 @@ def create_app(folder: Path, db_path: Path):
                 "SELECT COUNT(*) as cnt FROM photos WHERE tags_json IS NOT NULL"
             )
             date_range = db_pool.execute_one("""
-                SELECT MIN(COALESCE(exif_date, file_modified)) as oldest,
-                       MAX(COALESCE(exif_date, file_modified)) as newest
+                SELECT MIN(COALESCE(date_taken, file_modified)) as oldest,
+                       MAX(COALESCE(date_taken, file_modified)) as newest
                 FROM photos
             """)
 
