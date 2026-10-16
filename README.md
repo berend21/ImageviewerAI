@@ -6,7 +6,7 @@ AI-powered search to your existing image folders — without uploading
 your photos to the cloud.
 
 Start page
-<img width="1902" height="914" alt="Screenshot 2026-10-10 191530" src="https://github.com/user-attachments/assets/bc8a787f-a85c-4969-8c22-c03892dff1ec" />
+<img width="1898" height="900" alt="Screenshot 2026-10-16 095923" src="https://github.com/user-attachments/assets/816c2be0-24f8-49e6-ab4e-7f5d5eb109c4" />
 Map with image locations
 <img width="1898" height="910" alt="Screenshot 2026-10-15 212452" src="https://github.com/user-attachments/assets/2793afb5-b07e-4b93-8438-84c9bd4e28fa" />
 Searching 'electrical'
